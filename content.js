@@ -1,0 +1,1 @@
+console.log("RedFlag content script loaded");
