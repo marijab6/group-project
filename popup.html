@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RedFlag</title>
 
   <!-- Tailwind -->
@@ -16,6 +17,39 @@
 </head>
 
 <body class="w-[420px] bg-gray-100 text-gray-900">
+    <header class="bg-[#f3f3f3] border border-gray-300">
+  
+      <div class="flex items-center justify-between px-6 py-6">
+        <div class="flex items-center gap-2">
+          <div class="flex items-center gap-4">
+            <img src="logo-2.png" alt="Logo" class="w-20 h-20 object-contain">
+            <h1 class="text-2xl font-semibold tracking-wide">Red Flag</h1>
+          </div>
+        </div>
+  
+        <button class="w-20 h-10 rounded-full border-2 border-slate-800 bg-white flex items-center px-1">
+          <div class="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white text-sm">
+            🌙
+          </div>
+          <div class="flex-1 text-center text-sm">
+            ☀️
+          </div>
+        </button>
+  
+      </div>
+  
+      <nav class="border-t border-gray-300">
+        <div class="grid grid-cols-2 text-center text-2xl">
+          <button class="py-2 hover:bg-gray-200 active:bg-gray-300 transition">
+            Overview
+          </button>
+          <button class="py-2 hover:bg-gray-200 active:bg-gray-300 transition">
+            Activity
+          </button>
+        </div>
+      </nav>
+  
+    </header>
   <div class="p-4">
     <!-- Main Card -->
     <section class="bg-white rounded-3xl shadow-lg p-5 border border-gray-100">
@@ -72,5 +106,16 @@
       </div>
     </section>
   </div>
+  <footer class="px-8 py-10 space-y-8">
+      <div class="flex gap-6">
+        <button class="bg-green-600 hover:bg-green-700 transition text-white text-1xl px-6 py-3 rounded-2xl font-medium">
+          Report Website
+        </button>
+        <button class="bg-blue-600 hover:bg-blue-700 transition text-white text-1xl px-6 py-3 rounded-2xl font-medium">
+          Analyze Again
+        </button>
+  
+      </div>
+    </footer>
 </body>
 </html>
