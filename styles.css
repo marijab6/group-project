@@ -1,3 +1,7 @@
+/* styles.css */
+@import "tailwindcss";
+@tailwind utilities;
+
 .RedFlag-high-risk {
   background-color: red;
   color: white;
