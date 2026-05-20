@@ -2,7 +2,70 @@
 @import "tailwindcss";
 @tailwind utilities;
 
+:root {
+  color-scheme: light;
+}
+
 .RedFlag-high-risk {
   background-color: red;
   color: white;
+}
+
+.text-overflow {
+  display: -webkit-box;
+  -webkit-line-clamp: 3; /* Number of lines you want to display */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word; /* For older browsers */
+  overflow-wrap: break-word; /* For modern browsers */
+
+}
+
+body.dark-mode {
+  background-color: #0f1115;
+  color: #e5e7eb;
+}
+
+body.dark-mode section {
+  background-color: #111827;
+  border-color: #374151;
+}
+
+body.dark-mode nav {
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+body.dark-mode .toggle-button {
+  background-color: #29394f;
+}
+
+body.dark-mode .toggle-button .toggle-circle {
+  background-color: white;
+}
+
+body.dark-mode nav div button:hover {
+  background-color: #29394f;
+  color: #e5e7eb;
+}
+
+body.dark-mode .risk-score {
+  color: #101828;
+}
+
+body.dark-mode nav button {
+  color: #e5e7eb;
+}
+
+body.dark-mode .website-card,
+body.dark-mode .ai-card {
+  background-color: #1f2937;
+  border-color: #374151;
+  color: #e5e7eb;
+}
+
+body.dark-mode .muted-text {
+  color: #d1d5db;
 }
