@@ -36,7 +36,7 @@
                 alt="Logo"
                 class="w-16 h-16 object-contain"
               />
-              <h1 class="text-xl font-semibold tracking-wide">Red Flag</h1>
+              <h1 class="text-xl font-semibold tracking-wide">RedFlag</h1>
             </div>
 
             <button
@@ -77,7 +77,7 @@
             class="website-card flex justify-between items-center text-[15px] border border-[#E5E7EB] bg-[#FDFDFD] p-4 rounded-2xl"
           >
             <span class="muted-text text-gray-600">🌐 Current Website:</span>
-            <strong class="font-bold">www.google.com</strong>
+            <strong id="currentWebsite" class="font-bold">www.google.com</strong>
           </div>
           <!-- Reports -->
           <p class="text-red-500 text-sm font-semibold mt-3">
@@ -86,7 +86,7 @@
           <!-- Website Status -->
           <div class="mt-6">
             <h3 class="font-bold text-lg">Website status:</h3>
-            <p class="text-green-600 font-semibold mt-1 text-[30px]">Safe</p>
+            <p id="websiteStatus" class="text-green-600 font-semibold mt-1 text-[30px]">Safe</p>
           </div>
           <!-- Risk Score -->
           <div class="mt-6">
@@ -94,10 +94,10 @@
             <div
               class="relative h-8 border border-green-500 rounded-full overflow-hidden bg-white"
             >
-              <div
-                class="h-full w-[45%] bg-green-500 rounded-full transition-all duration-500"
+              <div id="riskBar"
+                class="h-full bg-green-500 rounded-full transition-all duration-500"
               ></div>
-              <span
+              <span id="riskPercentage"
                 class="risk-score absolute right-4 top-1/2 -translate-y-1/2 font-bold text-sm"
               >
                 45%
@@ -107,20 +107,12 @@
           <!-- Reasons -->
           <div class="mt-7">
             <h3 class="font-bold text-lg mb-3">Reasons:</h3>
-            <ul class="space-y-3 text-[15px]">
-              <li class="flex items-center gap-2">
-                <span>⚠️</span>
-                <span>Suspicious domain</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span>⚠️</span>
-                <span>Urgency wording</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span>⚠️</span>
-                <span>Fake login indicators</span>
-              </li>
-            </ul>
+              <ul id="reasonsList" class="space-y-3 text-[15px]">
+                <li class="flex items-center gap-2 text-gray-500">
+                  <span>✅</span>
+                  <span>No suspicious indicators detected</span>
+                </li>
+              </ul>
           </div>
           <!-- AI Analysis -->
           <div class="mt-7">
@@ -165,4 +157,4 @@
     </div>
   </body>
   <script src="content.js"></script>
-</html>
+  </html>
