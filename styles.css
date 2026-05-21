@@ -69,3 +69,9 @@ body.dark-mode .ai-card {
 body.dark-mode .muted-text {
   color: #d1d5db;
 }
+.RedFlag-high-risk {
+  background-color: #dc2626 !important;
+  color: white !important;
+  padding: 2px 4px;
+  border-radius: 4px;
+}

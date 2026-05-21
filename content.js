@@ -1,41 +1,41 @@
 console.log("RedFlag content script loaded");
 
-const content = document.getElementById("content");
-const text = document.getElementById("text");
-const expandLink = document.getElementById("expand-link");
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === "GET_PAGE_TEXT") {
+    const importantText = Array.from(
+      document.querySelectorAll("h1, h2, h3, p, button, a, label, span")
+    )
+      .map((el) => el.innerText || "")
+      .join(" ");
 
-expandLink.addEventListener("click", (event) => {
-  if (expandLink.textContent === "See More") {
-    expandLink.textContent = "See Less";
-    text.classList.remove("text-overflow");
-  } else {
-    expandLink.textContent = "See More";
-    text.classList.add("text-overflow");
+    sendResponse({
+      text: importantText.slice(0, 3000)
+    });
+  }
+
+  if (request.type === "HIGHLIGHT_SCAM_TEXT") {
+    highlightScamText(request.scamPhrases || []);
+    sendResponse({ success: true });
   }
 });
 
-// How to detect if text is overflowing / ellipsis are active?
+function highlightScamText(scamPhrases) {
+  if (!scamPhrases.length) return;
 
-if (text.scrollHeight > content?.offsetHeight) {
-   expandLink.style.display = "block";
-} else {
-   expandLink.style.display = "none";
-}
+  const cleanPhrases = scamPhrases
+    .filter((phrase) => phrase && phrase.length > 2)
+    .map((phrase) => phrase.toLowerCase());
 
-// Dark mode toggle
-document.addEventListener("DOMContentLoaded", () => {
-  const themeToggle = document.getElementById("themeToggle");
-  const toggleCircle = document.getElementById("toggleCircle");
+  const elements = document.querySelectorAll("p, span, h1, h2, h3, a, button, label");
 
-  themeToggle.addEventListener("click", () => {
-    document.body.classList.toggle("dark-mode");
+  elements.forEach((element) => {
+    const text = element.innerText || "";
+    const lowerText = text.toLowerCase();
 
-    const isDark = document.body.classList.contains("dark-mode");
+    const found = cleanPhrases.some((phrase) => lowerText.includes(phrase));
 
-    if (toggleCircle) {
-      toggleCircle.style.transform = isDark
-        ? "translateX(24px)"
-        : "translateX(0)";
+    if (found) {
+      element.classList.add("RedFlag-high-risk");
     }
   });
-});
+}

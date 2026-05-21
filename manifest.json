@@ -4,6 +4,14 @@
   "version": "1.0",
   "description": "Detects scam and phishing risks on websites.",
   "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "<all_urls>",
+    "https://safebrowsing.googleapis.com/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "RedFlag",
