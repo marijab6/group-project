@@ -270,12 +270,11 @@ function updateRisk(score) {
         { type: "GET_LAST_RESULT" },
         (response) => {
           if (chrome.runtime.lastError) {
-            display.textContent = "Open a normal website and refresh";
+            display.textContent = "";
             return;
           }
   
-          const count = response?.suspiciousIndexes?.length ?? 0;
-  
+        const count = response?.suspiciousIds?.length ?? 0;  
           display.textContent = `⚠️ Suspicious buttons: ${count}`;
         }
       );

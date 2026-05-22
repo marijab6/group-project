@@ -1,5 +1,5 @@
-const GOOGLE_SAFE_BROWSING_KEY = "YOUR_GOOGLE_SAFE_BROWSING_KEY";
-const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY";
+const GOOGLE_SAFE_BROWSING_KEY = "AIzaSyCHLDX7fG7SA4mNLrxHneXsQPoV-gKrl6M";
+const GEMINI_API_KEY = "AIzaSyCuidcWNvlE0KmehYAKtqH1D_H-lqjYk-w";
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "ANALYZE_WEBSITE") {
     analyzeWebsite(request.url, request.pageText).then(sendResponse);
@@ -363,7 +363,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type !== "ANALYZE_PAGE") return;
   if (!msg.buttons || !msg.buttons.length) return;
 
-  analyzeWithGemini(msg.buttons)
+  analyzeButtonsWithGemini(msg.buttons)
     .then((result) => {
       console.log("🤖 RAW AI RESULT:", result);
 
@@ -389,7 +389,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 /**
  * Call Gemini API
  */
-async function analyzeWithGemini(buttons) {
+async function analyzeButtonsWithGemini(buttons) {
   console.log("📦 BUTTONS SENT TO AI:", buttons.length);
 
   const prompt = `
