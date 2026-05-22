@@ -1,9 +1,18 @@
 {
+  "type": "module",
   "scripts": {
-    "build:css": "npx @tailwindcss/cli -i ./styles.css -o ./dist/tailwind.css --watch"
+    "build:css": "npx @tailwindcss/cli -i ./styles.css -o ./dist/tailwind.css --watch",
+    "start": "node server.js"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.0",
     "tailwindcss": "^4.3.0"
+  },
+  "dependencies": {
+    "@google/genai": "^2.5.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "openai": "^6.38.0"
   }
 }

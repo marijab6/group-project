@@ -3,7 +3,7 @@
   "name": "RedFlag",
   "version": "1.0",
   "description": "Detects scam and phishing risks on websites.",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab", "scripting","tabs"],
   "host_permissions": [
     "<all_urls>",
     "https://safebrowsing.googleapis.com/*",
