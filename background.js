@@ -1,5 +1,5 @@
-const GOOGLE_SAFE_BROWSING_KEY = "AIzaSyCHLDX7fG7SA4mNLrxHneXsQPoV-gKrl6M";
-const GEMINI_API_KEY = "AIzaSyCuidcWNvlE0KmehYAKtqH1D_H-lqjYk-w";
+const GOOGLE_SAFE_BROWSING_KEY = "YOUR_API_KEY"
+const GEMINI_API_KEY = "YOUR_API_KEY";
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "ANALYZE_WEBSITE") {
     analyzeWebsite(request.url, request.pageText).then(sendResponse);

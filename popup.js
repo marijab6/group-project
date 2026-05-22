@@ -3,7 +3,7 @@ console.log("RedFlag popup loaded");
 const currentWebsite = document.getElementById("currentWebsite");
 const websiteStatus = document.getElementById("websiteStatus");
 const riskBar = document.getElementById("riskBar");
-const riskScore = document.getElementById("riskScore");
+const riskScore = document.getElementById("riskPercentage");
 const reasonsList = document.getElementById("reasonsList");
 const aiText = document.getElementById("text");
 const analyzeAgainBtn = document.getElementById("analyzeAgainBtn");
