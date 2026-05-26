@@ -75,3 +75,21 @@ body.dark-mode .muted-text {
   padding: 2px 4px;
   border-radius: 4px;
 }
+body.dark-mode .activity-card {
+  background-color: #1f2937;
+  border-color: #374151;
+  color: #e5e7eb;
+}
+
+body.dark-mode .activity-details,
+body.dark-mode .activity-date {
+  color: #d1d5db;
+}
+
+body.dark-mode #historyList p {
+  color: #d1d5db;
+}
+
+.hidden {
+  display: none !important;
+}

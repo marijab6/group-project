@@ -40,15 +40,28 @@
           </button>
         </div>
 
-        <nav class="border-t border-b -mx-4 border-gray-200 bg-white mb-5">
-          <div class="grid grid-cols-2 text-center text-lg">
-            <button class="py-2 hover:bg-gray-200 transition">Overview</button>
-            <button class="py-2 hover:bg-gray-200 transition">Activity</button>
-          </div>
-        </nav>
+          <nav
+            class="border-t border-b -mx-4 border-[#E5E7EB] bg-[#FDFDFD] mb-5"
+          >
+            <div class="grid grid-cols-2 text-center text-lg">
+              <button
+                id="overviewBtn"
+                class="py-2 hover:bg-gray-200 active:bg-gray-300 transition"
+              >
+                Overview
+              </button>
+              <button
+                id="activityBtn"
+                class="py-2 hover:bg-gray-200 active:bg-gray-300 transition"
+              >
+                Activity
+              </button>
+            </div>
+          </nav>
       </header>
 
       <main>
+        <div id="overviewTab">
         <div class="website-card flex justify-between items-center text-[15px] border border-gray-200 bg-gray-50 p-4 rounded-2xl">
           <span class="muted-text text-gray-600">🌐 Current Website:</span>
           <strong id="currentWebsite" class="font-bold">Loading...</strong>
@@ -134,6 +147,18 @@
             </button>
           </div>
         </div>
+        </div>
+
+<div id="activityTab" class="hidden p-4">
+  <h3 class="font-bold text-lg mb-3">Activity History</h3>
+
+  <div id="historyList" class="space-y-3">
+    <p class="text-gray-500 text-sm">
+      No analysis history yet.
+    </p>
+  </div>
+</div>
+</div>
       </main>
     </section>
 
