@@ -393,18 +393,7 @@ function renderResult(result) {
   });
 }
 
-function updateRisk(score) {
-  riskScore.textContent = score + "%";
-  riskBar.style.width = score + "%";
-
-  if (score >= 50) {
-    riskBar.style.backgroundColor = "#dc2626";
-  } else if (score >= 20) {
-    riskBar.style.backgroundColor = "#f97316";
-  } else {
-    riskBar.style.backgroundColor = "#22c55e";
-  }
-}document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", () => {
     // ---------------- EXPAND / COLLAPSE ----------------
     const content = document.getElementById("content");
     const text = document.getElementById("text");
