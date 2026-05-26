@@ -1,3 +1,4 @@
+import { saveScanResult, getScanResults } from "./firebase.js";
 console.log("RedFlag popup script loaded");
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
