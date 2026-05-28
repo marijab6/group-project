@@ -1,145 +1,621 @@
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
 const app = express();
+
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
+// =====================================================
+// CONFIG
+// =====================================================
 
-function fallbackDetection(url, pageSignals = {}) {
-  let score = 0;
-  const reasons = [];
+const PORT = 3000;
+
+const GOOGLE_SAFE_BROWSING_KEY =
+  process.env.GOOGLE_SAFE_BROWSING_KEY;
+
+const OLLAMA_URL =
+  "http://localhost:11434/api/generate";
+
+const OLLAMA_MODEL = "llama3.2:1b";
+
+// =====================================================
+// SAFE BROWSING
+// =====================================================
+
+
+async function checkSafeBrowsing(url) {
 
   try {
-    const parsedUrl = new URL(url);
-    const domain = parsedUrl.hostname.toLowerCase();
 
-    if (parsedUrl.protocol === "http:") {
+    const endpoint =
+      `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${GOOGLE_SAFE_BROWSING_KEY}`;
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json"
+      },
+
+      body: JSON.stringify({
+        client: {
+          clientId: "redflag-extension",
+          clientVersion: "1.0"
+        },
+
+        threatInfo: {
+          threatTypes: [
+            "MALWARE",
+            "SOCIAL_ENGINEERING",
+            "UNWANTED_SOFTWARE",
+            "POTENTIALLY_HARMFUL_APPLICATION"
+          ],
+
+          platformTypes: [
+            "ANY_PLATFORM"
+          ],
+
+          threatEntryTypes: [
+            "URL"
+          ],
+
+          threatEntries: [
+            { url }
+          ]
+        }
+      })
+    });
+
+    const data = await response.json();
+
+    return {
+      unsafe: Boolean(data.matches)
+    };
+
+  } catch (error) {
+
+    console.error(
+      "Safe Browsing error:",
+      error
+    );
+
+    return {
+      unsafe: false
+    };
+  }
+}
+
+
+
+// =====================================================
+// RULE-BASED DETECTION
+// =====================================================
+
+function ruleBasedDetection(url, pageText = "", pageSignals = {}) {
+
+  let score = 0;
+
+  const reasons = [];
+  const scamPhrases = [];
+
+  try {
+
+    const parsed = new URL(url);
+
+    const domain =
+      parsed.hostname.toLowerCase();
+
+    const text =
+      pageText.toLowerCase();
+
+    // =========================================
+    // HTTP
+    // =========================================
+
+    if (parsed.protocol === "http:") {
+
       score += 25;
-      reasons.push("Website does not use HTTPS");
+
+      reasons.push(
+        "Website does not use HTTPS"
+      );
     }
 
-    if (domain.includes("-")) {
-      score += 15;
-      reasons.push("Domain contains dash characters");
-    }
-
-    if (domain.length > 30) {
-      score += 15;
-      reasons.push("Very long domain name");
-    }
-
-    if (domain.split(".").length > 3) {
-      score += 15;
-      reasons.push("Website uses many subdomains");
-    }
-
-    if (
-      domain.endsWith(".xyz") ||
-      domain.endsWith(".top") ||
-      domain.endsWith(".click") ||
-      domain.endsWith(".link") ||
-      domain.endsWith(".info")
-    ) {
-      score += 20;
-      reasons.push("Website uses a high-risk domain extension");
-    }
+    // =========================================
+    // LONG URL
+    // =========================================
 
     if (url.length > 100) {
-      score += 10;
-      reasons.push("URL is unusually long");
+
+      score += 15;
+
+      reasons.push(
+        "Very long URL detected"
+      );
     }
+
+    // =========================================
+    // MANY SUBDOMAINS
+    // =========================================
+
+    if (domain.split(".").length > 3) {
+
+      score += 15;
+
+      reasons.push(
+        "Website uses many subdomains"
+      );
+    }
+
+    // =========================================
+    // SUSPICIOUS TLD
+    // =========================================
+
+    const riskyTlds = [
+      ".xyz",
+      ".top",
+      ".click",
+      ".info",
+      ".shop"
+    ];
+
+    if (
+      riskyTlds.some(tld =>
+        domain.endsWith(tld)
+      )
+    ) {
+
+      score += 20;
+
+      reasons.push(
+        "Suspicious domain extension"
+      );
+    }
+
+    // =========================================
+    // DASHES
+    // =========================================
+
+    if (domain.includes("-")) {
+
+      score += 10;
+
+      reasons.push(
+        "Domain contains dashes"
+      );
+    }
+
+    // =========================================
+    // GAMBLING / SCAM WORDS
+    // =========================================
+
+    const suspiciousWords = [
+      "login",
+      "verify",
+      "password",
+      "bank",
+      "secure",
+      "wallet",
+      "crypto",
+      "bonus",
+      "jackpot",
+      "deposit",
+      "withdraw",
+      "casino",
+      "urgent",
+      "confirm",
+      "free money"
+    ];
+
+    let foundCount = 0;
+
+    suspiciousWords.forEach(word => {
+
+      if (text.includes(word)) {
+
+        foundCount++;
+
+        scamPhrases.push(word);
+      }
+    });
+
+    if (foundCount >= 3) {
+
+      score += 25;
+
+      reasons.push(
+        "Multiple suspicious phishing/scam keywords detected"
+      );
+    }
+
+    // =========================================
+    // PASSWORD FIELD
+    // =========================================
+
+    if (pageSignals.hasPasswordField) {
+
+      score += 20;
+
+      reasons.push(
+        "Password field detected"
+      );
+    }
+
+    // =========================================
+    // URGENCY WORDING
+    // =========================================
+
+    if (pageSignals.hasUrgencyWords) {
+
+      score += 15;
+
+      reasons.push(
+        "Urgency wording detected"
+      );
+    }
+
   } catch (error) {
-    reasons.push("URL could not be analyzed");
+
+    reasons.push(
+      "URL could not be analyzed"
+    );
   }
 
-  score = Math.min(score, 100);
-
-  let status = "Safe";
-  if (score > 20 && score <= 50) status = "Suspicious";
-  if (score > 50) status = "Dangerous";
-
   return {
-    score,
-    status,
-    reasons:
-      reasons.length > 0 ? reasons : ["No suspicious indicators detected"],
-    explanation:
-      score <= 20
-        ? "This website appears safe based on the current checks."
-        : score <= 50
-          ? "This website shows some suspicious indicators. Be careful before entering personal information."
-          : "This website shows multiple high-risk phishing indicators. Avoid entering passwords, payment details, or personal information.",
-    source: "fallback",
+    score: Math.min(score, 100),
+    reasons,
+    scamPhrases
   };
 }
 
-app.post("/analyze", async (req, res) => {
+// =====================================================
+// OLLAMA AI ANALYSIS
+// =====================================================
+
+async function analyzeWithOllama(data) {
+
   try {
-    const { url, pageSignals = {} } = req.body;
 
     const prompt = `
-You are a cybersecurity website risk detector for a browser extension called RedFlag.
+You are a professional cybersecurity threat analysis engine.
 
-Analyze the website using the given URL and browser-detected signals.
+Analyze the website carefully.
 
-Website URL:
-${url}
+Detect:
+- phishing
+- fake login systems
+- credential theft
+- scam behavior
+- fake banking systems
+- gambling scams
+- crypto scams
+- social engineering
+- urgency manipulation
+- suspicious payment requests
+- impersonation attempts
 
-Detected technical signals:
-${JSON.stringify(pageSignals, null, 2)}
+Return ONLY valid JSON.
 
-Return ONLY valid JSON in this exact format:
 {
-  "score": 0,
-  "status": "Safe",
-  "reasons": ["reason 1", "reason 2"],
-  "explanation": "short user-friendly explanation"
+  "score": 0-40,
+  "reasons": [],
+  "scamPhrases": [],
+  "summary": ""
 }
 
-Rules:
-- score must be between 0 and 100
-- status must be one of: Safe, Suspicious, Dangerous
-- 0-20 = Safe
-- 21-50 = Suspicious
-- 51-100 = Dangerous
-- Do not exaggerate
-- Do not say a site is definitely malicious unless there are strong indicators
-- Keep reasons short and clear
+Website Data:
+${JSON.stringify(data, null, 2)}
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-    });
+    const response = await fetch(
+      OLLAMA_URL,
+      {
+        method: "POST",
 
-    let text = response.text.trim();
-    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+        headers: {
+          "Content-Type": "application/json"
+        },
 
-    const result = JSON.parse(text);
+        body: JSON.stringify({
+          model: OLLAMA_MODEL,
+
+          prompt,
+
+          stream: false,
+
+          format: {
+            type: "object",
+
+            properties: {
+
+              score: {
+                type: "number"
+              },
+
+              reasons: {
+                type: "array",
+
+                items: {
+                  type: "string"
+                }
+              },
+
+              scamPhrases: {
+                type: "array",
+
+                items: {
+                  type: "string"
+                }
+              },
+
+              summary: {
+                type: "string"
+              }
+            },
+
+            required: [
+              "score",
+              "reasons",
+              "summary"
+            ]
+          },
+
+          options: {
+            temperature: 0.1
+          }
+        })
+      }
+    );
+
+    const raw = await response.text();
+
+    console.log("========== RAW OLLAMA ==========");
+    console.log(raw);
+
+    if (!raw || raw.trim().length === 0) {
+
+      throw new Error(
+        "Empty Ollama response"
+      );
+    }
+
+    const parsedRaw =
+      JSON.parse(raw);
+
+    const text =
+      parsedRaw.response || "";
+
+    const jsonStart =
+      text.indexOf("{");
+
+    const jsonEnd =
+      text.lastIndexOf("}") + 1;
+
+    if (
+      jsonStart === -1 ||
+      jsonEnd === 0
+    ) {
+
+      throw new Error(
+        "No JSON found in Ollama response"
+      );
+    }
+
+    const cleaned =
+      text.slice(jsonStart, jsonEnd);
+
+    const parsed =
+      JSON.parse(cleaned);
+
+    return {
+      score: parsed.score || 0,
+
+      reasons:
+        parsed.reasons || [],
+
+      scamPhrases:
+        parsed.scamPhrases || [],
+
+      summary:
+        parsed.summary ||
+        "Suspicious website detected"
+    };
+
+  } catch (error) {
+
+    console.error(
+      "❌ Ollama error:",
+      error
+    );
+
+    return {
+      score: 0,
+      reasons: [],
+      scamPhrases: [],
+      summary:
+        "AI analysis unavailable"
+    };
+  }
+}
+
+// =====================================================
+// MAIN ANALYSIS ENDPOINT
+// =====================================================
+
+app.post("/analyze", async (req, res) => {
+
+  try {
+
+    const {
+      url,
+      pageText = "",
+      pageSignals = {}
+    } = req.body;
+
+    // =========================================
+    // SAFE BROWSING
+    // =========================================
+
+    const safeBrowsing =
+      await checkSafeBrowsing(url);
+
+    let finalScore = 0;
+
+    let reasons = [];
+
+    let scamPhrases = [];
+
+    let explanation =
+      "No major threats detected.";
+
+    if (safeBrowsing.unsafe) {
+
+      finalScore += 60;
+
+      reasons.push(
+        "Google Safe Browsing marked this website as dangerous"
+      );
+    }
+
+    // =========================================
+    // RULE ANALYSIS
+    // =========================================
+
+    const ruleResult =
+      ruleBasedDetection(
+        url,
+        pageText,
+        pageSignals
+      );
+
+    finalScore += ruleResult.score;
+
+    reasons = [
+      ...new Set([
+        ...reasons,
+        ...ruleResult.reasons
+      ])
+    ];
+
+    scamPhrases = [
+      ...new Set([
+        ...scamPhrases,
+        ...ruleResult.scamPhrases
+      ])
+    ];
+
+    // =========================================
+    // OLLAMA ANALYSIS
+    // =========================================
+
+    if (finalScore >= 20) {
+
+      console.log(
+        "⚠️ Triggering Ollama analysis..."
+      );
+
+      const aiResult =
+        await analyzeWithOllama({
+          url,
+
+          pageText:
+            pageText
+              .replace(/\s+/g, " ")
+              .slice(0, 4000)
+        });
+
+      finalScore +=
+        Math.min(
+          aiResult.score || 0,
+          40
+        );
+
+      reasons = [
+        ...new Set([
+          ...reasons,
+          ...(aiResult.reasons || [])
+        ])
+      ];
+
+      scamPhrases = [
+        ...new Set([
+          ...scamPhrases,
+          ...(aiResult.scamPhrases || [])
+        ])
+      ];
+
+      explanation =
+        aiResult.summary || explanation;
+    }
+
+    // =========================================
+    // FINAL SCORE
+    // =========================================
+
+    finalScore =
+      Math.min(100, finalScore);
+
+    let status = "Safe";
+
+    if (finalScore >= 50) {
+      status = "Dangerous";
+    }
+    else if (finalScore >= 20) {
+      status = "Suspicious";
+    }
+
+    // =========================================
+    // SAFE CLEANUP
+    // =========================================
+
+    if (finalScore < 10) {
+
+      reasons = [];
+
+      scamPhrases = [];
+
+      explanation =
+        "This website appears safe.";
+    }
 
     res.json({
-      score: Number(result.score) || 0,
-      status: result.status || "Safe",
-      reasons: result.reasons || [],
-      explanation: result.explanation || "No explanation was generated.",
-      source: "gemini",
+      score: finalScore,
+      status,
+      reasons,
+      scamPhrases,
+      explanation,
+      source: "ollama-hybrid"
     });
-  } catch (error) {
-    console.error("Gemini detection error:", error);
 
-    const fallback = fallbackDetection(req.body.url, req.body.pageSignals);
-    res.json(fallback);
+  } catch (error) {
+
+    console.error(error);
+
+    res.json({
+      score: 0,
+      status: "Safe",
+      reasons: [],
+      scamPhrases: [],
+      explanation:
+        "Detection failed",
+      source: "fallback"
+    });
   }
 });
 
-app.listen(3000, () => {
-  console.log("RedFlag backend running on http://localhost:3000");
+// =====================================================
+// START SERVER
+// =====================================================
+
+app.listen(PORT, () => {
+
+  console.log(
+    `🚀 RedFlag backend running on http://localhost:${PORT}`
+  );
 });
