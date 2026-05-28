@@ -1,19 +1,13 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-import { GoogleGenAI } from "@google/genai";
-
-dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
+const OLLAMA_MODEL = "llama3.2:1b";
 
-function fallbackDetection(url, pageSignals = {}) {
+function fallbackDetection(url) {
   let score = 0;
   const reasons = [];
 
@@ -75,10 +69,25 @@ function fallbackDetection(url, pageSignals = {}) {
       score <= 20
         ? "This website appears safe based on the current checks."
         : score <= 50
-          ? "This website shows some suspicious indicators. Be careful before entering personal information."
-          : "This website shows multiple high-risk phishing indicators. Avoid entering passwords, payment details, or personal information.",
-    source: "fallback",
+        ? "This website shows some suspicious indicators. Be careful before entering personal information."
+        : "This website shows multiple high-risk phishing indicators. Avoid entering passwords, payment details, or personal information.",
+    source: "fallback"
   };
+}
+
+function extractJson(text) {
+  const cleanText = (text || "")
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim();
+
+  const match = cleanText.match(/\{[\s\S]*\}/);
+
+  if (!match) {
+    throw new Error("No JSON returned from Ollama");
+  }
+
+  return JSON.parse(match[0]);
 }
 
 app.post("/analyze", async (req, res) => {
@@ -88,7 +97,7 @@ app.post("/analyze", async (req, res) => {
     const prompt = `
 You are a cybersecurity website risk detector for a browser extension called RedFlag.
 
-Analyze the website using the given URL and browser-detected signals.
+Analyze this website for phishing or scam indicators.
 
 Website URL:
 ${url}
@@ -96,12 +105,12 @@ ${url}
 Detected technical signals:
 ${JSON.stringify(pageSignals, null, 2)}
 
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON:
 {
   "score": 0,
   "status": "Safe",
-  "reasons": ["reason 1", "reason 2"],
-  "explanation": "short user-friendly explanation"
+  "reasons": ["reason 1"],
+  "explanation": "short explanation"
 }
 
 Rules:
@@ -110,33 +119,195 @@ Rules:
 - 0-20 = Safe
 - 21-50 = Suspicious
 - 51-100 = Dangerous
-- Do not exaggerate
-- Do not say a site is definitely malicious unless there are strong indicators
-- Keep reasons short and clear
+- keep reasons short
+- do not write anything outside JSON
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
+    const ollamaResponse = await fetch("http://localhost:11434/api/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        prompt,
+        stream: false,
+        options: {
+          num_predict: 180,
+          temperature: 0.1
+        }
+      })
     });
 
-    let text = response.text.trim();
-    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-
-    const result = JSON.parse(text);
+    const data = await ollamaResponse.json();
+    const result = extractJson(data.response);
 
     res.json({
       score: Number(result.score) || 0,
       status: result.status || "Safe",
       reasons: result.reasons || [],
-      explanation: result.explanation || "No explanation was generated.",
-      source: "gemini",
+      explanation: result.explanation || "No explanation generated.",
+      source: "ollama"
     });
   } catch (error) {
-    console.error("Gemini detection error:", error);
+    console.error("Ollama detection error:", error);
+    res.json(fallbackDetection(req.body.url));
+  }
+});
 
-    const fallback = fallbackDetection(req.body.url, req.body.pageSignals);
-    res.json(fallback);
+app.post("/analyze-ai", async (req, res) => {
+  try {
+    const { url, pageText = "" } = req.body;
+
+const prompt = `
+You are an AI phishing and scam detector for a browser extension called RedFlag.
+
+Analyze the URL and website text.
+
+Check for:
+- phishing login forms
+- fake password fields
+- fake update warnings
+- urgency language
+- suspicious links
+- gambling or casino scam words
+- deposit or withdraw systems
+- fake prizes or bonuses
+- suspicious domains
+- long or strange URLs
+- misleading buttons
+
+Return ONLY valid JSON:
+{
+  "score": 0,
+  "summary": "short AI explanation",
+  "reasons": ["AI reason 1", "AI reason 2"],
+  "scamPhrases": ["exact phrase from page"]
+}
+
+Rules:
+- score must be between 0 and 100
+- reasons must sound like AI security analysis, not basic rules
+- scamPhrases must be exact words or short phrases from the website text
+- include words like login, password, update, bonus, deposit, withdraw if they appear
+- do not invent phrases
+- do not write outside JSON
+- For a phishing test page with login/password fields, fake update warnings, or social engineering text, score should be 60-90
+- Do not give low scores for obvious phishing examples
+
+Website URL:
+${url}
+
+Website text:
+${pageText.slice(0, 3000)}
+`;
+
+    const ollamaResponse = await fetch("http://localhost:11434/api/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        prompt,
+        stream: false,
+        options: {
+          num_predict: 180,
+          temperature: 0.1
+        }
+      })
+    });
+
+    const data = await ollamaResponse.json();
+    const result = extractJson(data.response);
+
+    res.json({
+      score: Number(result.score) || 0,
+      summary:
+        result.summary ||
+        "This website contains suspicious indicators based on AI analysis.",
+      reasons: result.reasons || [],
+      scamPhrases: result.scamPhrases || []
+    });
+  } catch (error) {
+    console.error("Ollama AI route error:", error);
+
+    res.json({
+      score: 0,
+      summary:
+        "This website contains suspicious indicators based on rule analysis.",
+      reasons: [],
+      scamPhrases: []
+    });
+  }
+});
+
+app.post("/analyze-buttons", async (req, res) => {
+  try {
+    const { buttons = [] } = req.body;
+
+    const prompt = `
+You are a cybersecurity risk scoring system.
+
+Analyze each clickable UI element and assign a risk score from 0 to 100.
+
+A button is risky if it:
+- asks for login or password
+- says deposit, withdraw, bonus, register, daftar, login
+- creates urgency
+- looks like scam or gambling UI
+- pushes immediate action
+
+Return ONLY valid JSON:
+{
+  "results": [
+    { "id": "button-id", "score": 0 }
+  ]
+}
+
+Rules:
+- keep every id exactly the same
+- score must be between 0 and 100
+- do not write anything outside JSON
+
+Buttons:
+${buttons
+  .map(
+    (b) => `
+ID: ${b.id}
+TEXT: ${b.text}
+HREF: ${b.href}
+TAG: ${b.tag}
+`
+  )
+  .join("\n")}
+`;
+
+    const ollamaResponse = await fetch("http://localhost:11434/api/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        prompt,
+        stream: false,
+        options: {
+          num_predict: 220,
+          temperature: 0.1
+        }
+      })
+    });
+
+    const data = await ollamaResponse.json();
+    const result = extractJson(data.response);
+
+    res.json({
+      results: result.results || []
+    });
+  } catch (error) {
+    console.error("Ollama button route error:", error);
+    res.json({ results: [] });
   }
 });
 

@@ -1,8 +1,31 @@
-const GOOGLE_SAFE_BROWSING_KEY = "YOUR_API_KEY"
-const GEMINI_API_KEY = "YOUR_API_KEY";
+const GOOGLE_SAFE_BROWSING_KEY = "YOUR_API_KEY";
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "ANALYZE_WEBSITE") {
     analyzeWebsite(request.url, request.pageText).then(sendResponse);
+    return true;
+  }
+
+  if (request.type === "ANALYZE_PAGE") {
+    if (!request.buttons || !request.buttons.length) return;
+
+    analyzeButtonsWithOllama(request.buttons)
+      .then((result) => {
+        const suspiciousIds = (result.results || [])
+          .filter((r) => Number(r.score) >= 60)
+          .map((r) => r.id);
+
+        if (sender.tab?.id) {
+          chrome.tabs.sendMessage(sender.tab.id, {
+            type: "AI_RESULT",
+            suspiciousIds
+          });
+        }
+      })
+      .catch((error) => {
+        console.error("Ollama button error:", error);
+      });
+
     return true;
   }
 });
@@ -13,56 +36,44 @@ async function analyzeWebsite(url, pageText) {
   let scamPhrases = [];
   let summary = "";
 
-  // ---------------- SAFE BROWSING ----------------
-
   const safeBrowsingResult = await checkSafeBrowsing(url);
 
   if (safeBrowsingResult.unsafe) {
     riskScore += 60;
-
-    reasons.push(
-      "Google Safe Browsing marked this website as dangerous"
-    );
+    reasons.push("Google Safe Browsing marked this website as dangerous");
   }
-
-  // ---------------- RULE BASED ----------------
 
   const ruleResult = ruleBasedCheck(url, pageText);
 
   riskScore += ruleResult.score;
-
   reasons = [...new Set([...reasons, ...ruleResult.reasons])];
+  scamPhrases = [...new Set([...scamPhrases, ...ruleResult.scamPhrases])];
 
-  scamPhrases = [
-    ...new Set([...scamPhrases, ...ruleResult.scamPhrases])
-  ];
+  if (true) { 
+    const aiResult = await analyzeWithOllama(pageText, url);
 
-  // ---------------- AI ANALYSIS ----------------
+    const aiScore = Number(aiResult.score) || 0;
 
-  if (riskScore >= 25) {
-    const aiResult = await analyzeWithGemini(pageText, url);
+    if (aiScore > riskScore) {
+      riskScore = aiScore;
+    } else {
+      riskScore += aiScore;
+    }
+    if (aiResult.reasons && aiResult.reasons.length > 0) {
+      reasons = [...new Set([...reasons, ...aiResult.reasons])];
+    }
 
-    riskScore += aiResult.score || 0;
+    if (aiResult.scamPhrases && aiResult.scamPhrases.length > 0) {
+      scamPhrases = [...new Set([...scamPhrases, ...aiResult.scamPhrases])];
+    }
 
-    reasons = [...new Set([...reasons, ...(aiResult.reasons || [])])];
 
-    scamPhrases = [
-      ...new Set([
-        ...scamPhrases,
-        ...(aiResult.scamPhrases || [])
-      ])
-    ];
-
-    summary =
-      aiResult.summary ||
-      "This website contains suspicious phishing patterns.";
-  }
-
-  // ---------------- FINAL SCORE ----------------
+summary =
+  aiResult.summary ||
+  aiResult.explanation ||
+  "This website contains suspicious phishing or scam patterns.";
 
   riskScore = Math.min(100, Math.round(riskScore));
-
-  // ---------------- STATUS ----------------
 
   let status = "Safe";
 
@@ -72,15 +83,20 @@ async function analyzeWebsite(url, pageText) {
     status = "Suspicious";
   }
 
-  // ---------------- SAFE MESSAGE ----------------
-
   if (riskScore < 10) {
     reasons = [];
-
     scamPhrases = [];
-
     summary =
       "This website looks safe. No major phishing or scam indicators were found.";
+  }
+
+  if (!summary) {
+    summary =
+      riskScore >= 50
+        ? "This website shows multiple high-risk indicators."
+        : riskScore >= 20
+        ? "This website shows some suspicious indicators."
+        : "This website looks safe.";
   }
 
   return {
@@ -91,28 +107,21 @@ async function analyzeWebsite(url, pageText) {
     summary
   };
 }
-
-// =====================================================
-// GOOGLE SAFE BROWSING
-// =====================================================
-
+}
 async function checkSafeBrowsing(url) {
   try {
     const response = await fetch(
       `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${GOOGLE_SAFE_BROWSING_KEY}`,
       {
         method: "POST",
-
         headers: {
           "Content-Type": "application/json"
         },
-
         body: JSON.stringify({
           client: {
             clientId: "redflag-extension",
             clientVersion: "1.0"
           },
-
           threatInfo: {
             threatTypes: [
               "MALWARE",
@@ -120,17 +129,13 @@ async function checkSafeBrowsing(url) {
               "UNWANTED_SOFTWARE",
               "POTENTIALLY_HARMFUL_APPLICATION"
             ],
-
             platformTypes: ["ANY_PLATFORM"],
-
             threatEntryTypes: ["URL"],
-
             threatEntries: [{ url }]
           }
         })
       }
     );
-
     const data = await response.json();
 
     return {
@@ -138,16 +143,9 @@ async function checkSafeBrowsing(url) {
     };
   } catch (error) {
     console.error("Safe Browsing error:", error);
-
-    return {
-      unsafe: false
-    };
+    return { unsafe: false };
   }
 }
-
-// =====================================================
-// RULE BASED DETECTION
-// =====================================================
 
 function ruleBasedCheck(url, pageText) {
   let score = 0;
@@ -155,8 +153,44 @@ function ruleBasedCheck(url, pageText) {
   let scamPhrases = [];
 
   const parsedUrl = new URL(url);
-  const host = parsedUrl.hostname.toLowerCase();
   const lowerText = (pageText || "").toLowerCase();
+  const domain = parsedUrl.hostname.toLowerCase();
+
+if (domain.includes("-")) {
+  score += 10;
+  reasons.push("Domain contains dash characters, which can be used in fake websites");
+}
+
+if (domain.length > 30) {
+  score += 10;
+  reasons.push("Domain name is unusually long");
+}
+
+if (domain.split(".").length > 3) {
+  score += 10;
+  reasons.push("Website uses many subdomains");
+}
+
+if (
+  domain.endsWith(".xyz") ||
+  domain.endsWith(".top") ||
+  domain.endsWith(".click") ||
+  domain.endsWith(".link") ||
+  domain.endsWith(".info")
+) {
+  score += 15;
+  reasons.push("Website uses a high-risk domain extension");
+}
+
+if (url.includes("@")) {
+  score += 20;
+  reasons.push("URL contains @ symbol, which can hide the real destination");
+}
+
+if (/\d+\.\d+\.\d+\.\d+/.test(domain)) {
+  score += 20;
+  reasons.push("Website uses an IP address instead of a normal domain");
+}
 
   if (parsedUrl.protocol === "http:") {
     score += 20;
@@ -261,212 +295,58 @@ function ruleBasedCheck(url, pageText) {
   };
 }
 
-// =====================================================
-// GEMINI AI ANALYSIS
-// =====================================================
-
-async function analyzeWithGemini(pageText, url) {
+async function analyzeWithOllama(pageText, url) {
   try {
-    const prompt = `
-Analyze this webpage for phishing, scams, fake login systems, gambling scams, or malicious behavior.
-
-Return ONLY valid JSON.
-
-{
-  "score": 0-30,
-  "summary": "short explanation",
-  "reasons": ["reason 1"],
-  "scamPhrases": ["phrase 1"]
-}
-
-URL:
-${url}
-
-TEXT:
-${pageText.slice(0, 3000)}
-`;
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-
-        headers: {
-          "Content-Type": "application/json"
-        },
-
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }]
-            }
-          ]
-        })
-      }
-    );
-
-    if (!response.ok) {
-      return {
-        score: 0,
-
-        summary:
-          "This website contains some suspicious indicators based on rule analysis.",
-
-        reasons: [],
-
-        scamPhrases: []
-      };
-    }
-
-    const data = await response.json();
-
-    const text =
-      data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-
-    const cleanText = text
-      .replace(/```json/g, "")
-      .replace(/```/g, "")
-      .trim();
-
-    const jsonStart = cleanText.indexOf("{");
-
-    const jsonEnd = cleanText.lastIndexOf("}") + 1;
-
-    return JSON.parse(
-      cleanText.slice(jsonStart, jsonEnd)
-    );
-  } catch (error) {
-    console.error("Gemini error:", error);
-
-    return {
-      score: 0,
-
-      summary:
-        "This website contains suspicious indicators based on rule analysis.",
-
-      reasons: [],
-
-      scamPhrases: []
-    };
-  }
-}console.log("🔥 BACKGROUND IS RUNNING");
-console.log("RedFlag background loaded");
-
-const API_KEY = "YOUR_GEMINI_API_KEY";
-
-/**
- * Listen for messages from content.js
- */
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  console.log("📩 MESSAGE RECEIVED:", msg);
-
-  if (msg.type !== "ANALYZE_PAGE") return;
-  if (!msg.buttons || !msg.buttons.length) return;
-
-  analyzeButtonsWithGemini(msg.buttons)
-    .then((result) => {
-      console.log("🤖 RAW AI RESULT:", result);
-
-      // convert AI results → suspicious IDs
-      const suspiciousIds = (result.results || [])
-        .filter((r) => r.score >= 60)
-        .map((r) => r.id);
-
-      console.log("🚨 FINAL SUSPICIOUS IDS:", suspiciousIds);
-
-      if (sender.tab?.id) {
-        chrome.tabs.sendMessage(sender.tab.id, {
-          type: "AI_RESULT",
-          suspiciousIds
-        });
-      }
-    })
-    .catch((err) => {
-      console.error("❌ Gemini error:", err);
-    });
-});
-
-/**
- * Call Gemini API
- */
-async function analyzeButtonsWithGemini(buttons) {
-  console.log("📦 BUTTONS SENT TO AI:", buttons.length);
-
-  const prompt = `
-You are a cybersecurity risk scoring system.
-
-Analyze each clickable UI element and assign a risk score from 0 to 100.
-
-Be aggressive in detection (prefer over-detection instead of missing phishing).
-
-A button is risky if it:
-- requests login, password, verification
-- creates urgency or fear
-- says "update", "confirm", "secure account"
-- looks like phishing or scam UI
-- pushes immediate action
-
-Return ONLY valid JSON in this format:
-
-{
-  "results": [
-    { "id": "button-id", "score": 0-100 }
-  ]
-}
-
-Buttons:
-${buttons
-  .map(
-    (b) => `
-ID: ${b.id}
-TEXT: ${b.text}
-HREF: ${b.href}
-TAG: ${b.tag}
-`
-  )
-  .join("\n")}
-`;
-
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
-    {
+    const response = await fetch("http://localhost:3000/analyze-ai", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }]
-          }
-        ]
+        url,
+        pageText: (pageText || "").slice(0, 2500)
       })
+    });
+
+    if (!response.ok) {
+      throw new Error("Ollama backend failed");
     }
-  );
 
-  const data = await res.json();
+    return await response.json();
+  } catch (error) {
+    console.error("Ollama error:", error);
 
-  let text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-  console.log("🧠 RAW GEMINI OUTPUT:", text);
-
-  // clean markdown formatting
-  text = text.replace(/```json|```/g, "").trim();
-
-  // extract JSON safely
-  const match = text.match(/\{[\s\S]*\}/);
-
-  if (!match) {
-    console.error("❌ No JSON found in AI output");
-    return { results: [] };
+    return {
+      score: 0,
+      summary:
+        "This website contains some suspicious indicators based on rule analysis.",
+      reasons: [],
+      scamPhrases: []
+    };
   }
+}
 
+async function analyzeButtonsWithOllama(buttons) {
   try {
-    const parsed = JSON.parse(match[0]);
-    console.log("✅ PARSED AI RESULT:", parsed);
-    return parsed;
-  } catch (e) {
-    console.error("❌ JSON parse failed:", match[0]);
+    const response = await fetch("http://localhost:3000/analyze-buttons", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        buttons: buttons.slice(0, 30)
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("Ollama button backend failed");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Ollama button analysis failed:", error);
     return { results: [] };
   }
 }
+
+console.log("RedFlag background loaded with Ollama");

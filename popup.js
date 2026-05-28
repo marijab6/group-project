@@ -74,7 +74,20 @@ async function analyzeCurrentTab() {
 
     renderResult(result);
 
-    await highlightPage(tab.id, result.scamPhrases || []);
+const phrasesToHighlight = [
+  ...(result.scamPhrases || []),
+  "password",
+  "login",
+  "update",
+  "bonus",
+  "deposit",
+  "withdraw",
+  "free",
+  "verify",
+  "account"
+];
+
+await highlightPage(tab.id, phrasesToHighlight);
   } catch (error) {
     console.error("Popup error:", error);
 
@@ -141,7 +154,7 @@ async function getPageData(tabId) {
         .join(" ");
 
       return {
-        combinedText: `${visibleText} ${imageText} ${linkText}`.slice(0, 10000)
+        combinedText: `${visibleText} ${imageText} ${linkText}`.slice(0, 2500)
       };
     }
   });
