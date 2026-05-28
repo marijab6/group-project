@@ -92,6 +92,36 @@ function setupAnalyzeAgainButton() {
 
 /* ---------------- ANALYZE AGAIN BUTTON ---------------- */
 
+function setupTabs() {
+  const overviewBtn = document.getElementById("overviewBtn");
+  const activityBtn = document.getElementById("activityBtn");
+  const overviewTab = document.getElementById("overviewTab");
+  const activityTab = document.getElementById("activityTab");
+
+  if (!overviewBtn || !activityBtn || !overviewTab || !activityTab) {
+    console.warn("Tab elements not found.");
+    return;
+  }
+
+  overviewBtn.addEventListener("click", () => {
+    overviewTab.classList.remove("hidden");
+    activityTab.classList.add("hidden");
+  });
+
+  activityBtn.addEventListener("click", async () => {
+    overviewTab.classList.add("hidden");
+    activityTab.classList.remove("hidden");
+
+    await loadActivityHistory();
+  });
+}
+function setupAnalyzeAgainButton() {
+  const analyzeAgainBtn = document.getElementById("analyzeAgainBtn");
+
+  if (!analyzeAgainBtn) return;
+
+  analyzeAgainBtn.addEventListener("click", analyzeCurrentTab);
+}
 async function analyzeCurrentTab() {
   const currentWebsite = document.getElementById("currentWebsite");
   const websiteStatus = document.getElementById("websiteStatus");
@@ -140,6 +170,14 @@ async function analyzeCurrentTab() {
     }
 
     renderResult(result);
+      await saveScanToHistory({
+      site_url: tab.url,
+      hostname: new URL(tab.url).hostname,
+      risk_score: result.riskScore || 0,
+      status: result.status || "Unknown",
+      details: result.summary || "No analysis available.",
+      scan_date: new Date().toLocaleString(),
+    });
 
     await saveScanToHistory({
       site_url: tab.url,
@@ -258,6 +296,138 @@ async function highlightPage(tabId, scamPhrases) {
         }
       });
     },
+  });
+}
+
+/* ---------------- RENDER RESULT ---------------- */
+
+function renderResult(result) {
+  const websiteStatus = document.getElementById("websiteStatus");
+  const reasonsList = document.getElementById("reasonsList");
+  const aiText = document.getElementById("text");
+
+  const score = result.riskScore || 0;
+
+  updateRisk(score);
+
+  websiteStatus.textContent = result.status || "Unknown";
+
+  if (score >= 50) {
+    websiteStatus.className = "text-red-600 font-semibold mt-1 text-[30px]";
+  } else if (score >= 20) {
+    websiteStatus.className = "text-orange-500 font-semibold mt-1 text-[30px]";
+  } else {
+    websiteStatus.className = "text-green-600 font-semibold mt-1 text-[30px]";
+  }
+
+  aiText.textContent = result.summary || "No analysis available.";
+  reasonsList.innerHTML = "";
+
+  const reasons = result.reasons || [];
+
+  if (score < 10) {
+    reasonsList.innerHTML =
+      "<li class='text-gray-500'>Website looks safe.</li>";
+    return;
+  }
+
+  if (reasons.length === 0) {
+    reasonsList.innerHTML =
+      "<li class='text-gray-500'>No suspicious reasons found.</li>";
+    return;
+  }
+
+  reasons.forEach((reason) => {
+    const li = document.createElement("li");
+    li.className = "flex items-center gap-2";
+    li.innerHTML = `<span>ΓÜá∩╕Å</span><span>${reason}</span>`;
+    reasonsList.appendChild(li);
+  });
+}
+
+/* ---------------- UPDATE RISK BAR ---------------- */
+
+function updateRisk(score) {
+  const riskScore = document.getElementById("riskPercentage");
+  const riskBar = document.getElementById("riskBar");
+
+  if (!riskScore || !riskBar) return;
+
+  riskScore.textContent = score + "%";
+  riskBar.style.width = score + "%";
+
+  if (score >= 50) {
+    riskBar.style.backgroundColor = "#dc2626";
+  } else if (score >= 20) {
+    riskBar.style.backgroundColor = "#f97316";
+  } else {
+    riskBar.style.backgroundColor = "#22c55e";
+  }
+}
+
+/* ---------------- LOCAL ACTIVITY HISTORY ---------------- */
+
+async function saveScanToHistory(scanResult) {
+  const data = await chrome.storage.local.get(["scan_results"]);
+  const history = data.scan_results || [];
+
+  history.unshift(scanResult);
+
+  const limitedHistory = history.slice(0, 10);
+
+  await chrome.storage.local.set({
+    scan_results: limitedHistory,
+  });
+}
+
+async function loadActivityHistory() {
+  const historyList = document.getElementById("historyList");
+
+  if (!historyList) return;
+
+  const data = await chrome.storage.local.get(["scan_results"]);
+  const history = data.scan_results || [];
+
+  historyList.innerHTML = "";
+
+  if (history.length === 0) {
+    historyList.innerHTML = `
+      <p class="text-gray-500 text-sm">No analysis history yet.</p>
+    `;
+    return;
+  }
+
+  history.forEach((item) => {
+    const color =
+      item.status === "Dangerous"
+        ? "text-red-500"
+        : item.status === "Suspicious"
+          ? "text-orange-500"
+          : "text-green-600";
+
+    const card = document.createElement("div");
+
+    card.className =
+      "activity-card border border-gray-200 rounded-2xl p-4 bg-white shadow-sm";
+
+    card.innerHTML = `
+      <div class="flex justify-between items-center gap-3">
+        <div>
+          <p class="font-bold text-sm break-all">${item.hostname}</p>
+<p class="activity-date text-xs text-gray-500">${item.scan_date}</p>
+        </div>
+        <span class="${color} font-bold text-sm">${item.status}</span>
+      </div>
+
+      <div class="mt-3">
+        <p class="text-sm font-semibold">Risk Score: ${item.risk_score}%</p>
+<p class="activity-details text-xs text-gray-600 mt-1">
+  ${item.details}
+</p>
+      </div>
+    `;
+
+    historyList.appendChild(card);
   });
 }
 
