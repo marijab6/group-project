@@ -1,6 +1,6 @@
 /* styles.css */
 @import "tailwindcss";
-@tailwind utilities;
+
 
 :root {
   color-scheme: light;
@@ -14,6 +14,7 @@
 .text-overflow {
   display: -webkit-box;
   -webkit-line-clamp: 3; /* Number of lines you want to display */
+  line-clamp: 3; /* Standard property for compatibility */
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
