@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const FIREBASE_PROJECT_ID = "red-flag-4fb04";
+const OLLAMA_TIMEOUT_MS = 115000;
 const FIREBASE_BASE_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
 
 const app = express();
@@ -390,7 +391,7 @@ Important strict rules:
 - Do not use JSON field names in your reasons. Never write reasons like "ruleBasedResult.score < 50", "pageSignals.hasUrgencyWords", "hasPasswordField", or "safeBrowsing.unsafe".
 - Reasons must be human-readable sentences that explain what a real user can understand.
 - If the evidence is weak, choose a low score and explain that no clear scam indicators were found.
-- Only assign 50 or higher when there are at least TWO strong dangerous indicators, such as credential theft, fake payment request, fake prize, impersonation, malware, crypto scam, or Google Safe Browsing warning.
+- Only assign 50 or higher when there are at least TWO strong dangerous indicators. Do not copy examples into the reasons. Only mention evidence that is actually found on the website.
 - A login form alone must stay Safe or low Suspicious.
 - Only include scamPhrases that are actual suspicious phrases found in the website text. Do not include generic single words unless they are clearly used in a scam context.
 - If this looks like a legitimate educational, business, or service website, keep the score in the Safe range unless the content strongly suggests abuse.
@@ -400,11 +401,14 @@ Risk score guide:
 - 21-49 = Suspicious. Some concerning signs exist, but not enough to call it dangerous.
 - 50-100 = Dangerous. Clear phishing, scam, credential theft, malware, impersonation, or fraud behavior.
 
-Write the summary for a non-technical user in 2-4 clear sentences.
-Explain what was found, why it matters, and whether the user should be careful.
-
-Return ONLY valid JSON.
-
+Write the summary like you are explaining it to a normal user.
+Do not use technical JSON words.
+Do not mention ruleBasedResult, pageSignals, score logic, or Safe Browsing fields.Explain what was found, why it matters, and whether the user should be careful.
+Return valid JSON for the extension, but write the summary and reasons in simple human language.
+The user will only see the summary and reasons, not the JSON format.
+Start with { and end with }.
+Do not use markdown.
+Do not write anything outside the JSON.
 {
   "score": 0-100,
   "status": "Safe | Suspicious | Dangerous",
@@ -417,78 +421,40 @@ Website Data:
 ${JSON.stringify(data, null, 2)}
 `;
 
-    const response = await fetch(
-      OLLAMA_URL,
-      {
-        method: "POST",
+const controller = new AbortController();
 
-        headers: {
-          "Content-Type": "application/json"
-        },
+const timeout = setTimeout(() => {
+  controller.abort();
+}, OLLAMA_TIMEOUT_MS);
 
-        body: JSON.stringify({
-          model: OLLAMA_MODEL,
+const response = await fetch(
+  OLLAMA_URL,
+  {
+    method: "POST",
+    signal: controller.signal,
 
-          prompt,
+    headers: {
+      "Content-Type": "application/json"
+    },
 
-          stream: false,
+    body: JSON.stringify({
+      model: OLLAMA_MODEL,
 
-          format: {
-            type: "object",
+      prompt,
 
-            properties: {
+      stream: false,
 
-              score: {
-                type: "number"
-              },
+format: "json",
 
-              status: {
-                type: "string"
-              },
-
-              reasons: {
-                type: "array",
-
-                items: {
-                  type: "string"
-                }
-              },
-
-              aiLikelihood: {
-                type: "number"
-              },
-
-              aiWritingStyle: {
-                type: "string"
-              },
-
-              scamPhrases: {
-                type: "array",
-
-                items: {
-                  type: "string"
-                }
-              },
-
-              summary: {
-                type: "string"
-              }
-            },
-
-            required: [
-              "score",
-              "status",
-              "reasons",
-              "summary"
-            ]
-          },
-
-          options: {
-            temperature: 0.1
-          }
-        })
+      options: {
+        temperature: 0.1,
+        num_predict: 600
       }
-    );
+    })
+  }
+);
+
+clearTimeout(timeout);
 
     const raw = await response.text();
 
@@ -654,8 +620,7 @@ app.post("/analyze", async (req, res) => {
           pageText:
             pageText
               .replace(/\s+/g, " ")
-              .slice(0, 4000),
-
+              .slice(0, 3000),
           pageSignals,
 
           ruleBasedResult: {

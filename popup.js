@@ -690,7 +690,19 @@ function renderResult(result) {
     "No AI analysis available.";
 
   // reasons
+const expandLink = document.getElementById("expand-link");
 
+setTimeout(() => {
+  if (!expandLink) return;
+
+  if (aiText.scrollHeight > aiText.clientHeight) {
+    expandLink.classList.remove("hidden");
+    expandLink.style.display = "block";
+  } else {
+    expandLink.classList.add("hidden");
+    expandLink.style.display = "none";
+  }
+}, 100);
   reasonsList.innerHTML = "";
 
   const reasons =
