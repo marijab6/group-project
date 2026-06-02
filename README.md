@@ -245,25 +245,36 @@ Team Members:
 * Jasmina Krus
 
 ## 📸 Screenshots
-
 ### 🛡️ Extension Icon
 The RedFlag browser extension icon displayed in the Chrome toolbar.
-<img width="40" height="48" alt="Extension Icon" src="https://github.com/user-attachments/assets/bc31d6c3-ce76-489d-b35c-5042e038d40e" />
+
+<img width="100" height="200" alt="Extension Icon" src="https://github.com/user-attachments/assets/bc31d6c3-ce76-489d-b35c-5042e038d40e" />
+
 ---
 ### 🌙 Dark Mode & Scam Highlighting
+
 Dark mode interface showing a suspicious website. RedFlag highlights suspicious content directly on the webpage and displays the analysis results.
+
 <img width="1614" height="905" alt="Dark Mode & Highlighting" src="https://github.com/user-attachments/assets/0be702e6-3869-4b8f-b498-e95066fd9767" />
+
 ---
 ### ☀️ Main Analysis Screen
+
 The main analysis interface displaying the website status, risk score, detected reasons, and AI explanation.
+
 <img width="1608" height="957" alt="Main Analysis" src="https://github.com/user-attachments/assets/d4c666b8-c0f2-43aa-b88f-9d98a68f76a7" />
+
 ---
 ### 👥 Community Reporting
 Users can report suspicious websites and view how many users have reported the website.
+
 <img width="411" height="266" alt="Community Reporting" src="https://github.com/user-attachments/assets/a44ff9b0-025f-4f4f-ade7-482562535d4e" />
+
 ---
 ### 📊 Activity History
+
 The Activity tab stores previous website analyses and allows users to review earlier scans.
+
 <img width="418" height="580" alt="Activity History" src="https://github.com/user-attachments/assets/fc5e7a73-b11a-49cd-86c4-5ef05883a8df" />
 
 ## Disclaimer
