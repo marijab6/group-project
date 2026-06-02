@@ -228,7 +228,21 @@ const suspiciousWords = [
   "seed phrase",
   "recovery phrase",
   "gift card",
-  "claim prize"
+  "claim prize",
+  "confirm identity",
+  "payment failed",
+  "bank alert",
+  "€800/month (gas, water & electricity included)",
+  "affordable rentals - move in now",
+  "affordable rentals",
+  "hurry",
+  "€550/month (gas, water & electricity included)",
+  "1 & 2 bedroom",
+  "going fast",
+  "all-in living",
+  "€800/month (all utilities included)",
+
+
 ];
 
     let foundCount = 0;
@@ -365,6 +379,7 @@ Detect:
 - urgency manipulation
 - suspicious payment requests
 - impersonation attempts
+- likelihood that the page text is AI-generated or heavily AI-assisted writing
 
 Use the rule-based findings as supporting cybersecurity evidence, but make your own final risk decision from the full website data.
 
@@ -437,6 +452,14 @@ ${JSON.stringify(data, null, 2)}
                 items: {
                   type: "string"
                 }
+              },
+
+              aiLikelihood: {
+                type: "number"
+              },
+
+              aiWritingStyle: {
+                type: "string"
               },
 
               scamPhrases: {
@@ -521,7 +544,10 @@ ${JSON.stringify(data, null, 2)}
 
       summary:
         parsed.summary ||
-        "Suspicious website detected"
+        "Suspicious website detected",
+
+      aiLikelihood: parsed.aiLikelihood || 0,
+      aiWritingStyle: parsed.aiWritingStyle || ""
     };
 
   } catch (error) {
