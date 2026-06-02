@@ -116,7 +116,24 @@ function ruleBasedDetection(url, pageText = "", pageSignals = {}) {
 
     const text =
       pageText.toLowerCase();
+      const trustedDomains = [
+      "canvas",
+      "instructure.com",
+      "google.com",
+      "microsoft.com",
+      "github.com",
+      "linkedin.com",
+      "youtube.com",
+      "stackoverflow.com"
+    ];
 
+    const isTrustedDomain =
+      trustedDomains.some(name =>
+        domain.includes(name)
+      );
+if (isTrustedDomain && score < 50) {
+  score = Math.min(score, 10);
+}
     // =========================================
     // HTTP
     // =========================================
@@ -198,23 +215,21 @@ function ruleBasedDetection(url, pageText = "", pageSignals = {}) {
     // GAMBLING / SCAM WORDS
     // =========================================
 
-    const suspiciousWords = [
-      "login",
-      "verify",
-      "password",
-      "bank",
-      "secure",
-      "wallet",
-      "crypto",
-      "bonus",
-      "jackpot",
-      "deposit",
-      "withdraw",
-      "casino",
-      "urgent",
-      "confirm",
-      "free money"
-    ];
+const suspiciousWords = [
+  "urgent",
+  "suspended",
+  "act now",
+  "limited time",
+  "free money",
+  "jackpot",
+  "deposit",
+  "withdraw",
+  "crypto giveaway",
+  "seed phrase",
+  "recovery phrase",
+  "gift card",
+  "claim prize"
+];
 
     let foundCount = 0;
 
@@ -241,27 +256,22 @@ function ruleBasedDetection(url, pageText = "", pageSignals = {}) {
     // PASSWORD FIELD
     // =========================================
 
-    if (pageSignals.hasPasswordField) {
-
-      score += 20;
-
-      reasons.push(
-        "Password field detected"
-      );
-    }
+if (pageSignals.hasPasswordField) {
+  score += 0;
+}
 
     // =========================================
     // URGENCY WORDING
     // =========================================
 
-    if (pageSignals.hasUrgencyWords) {
+if (pageSignals.hasUrgencyWords && foundCount >= 1) {
 
-      score += 15;
+  score += 10;
 
-      reasons.push(
-        "Urgency wording detected"
-      );
-    }
+  reasons.push(
+    "Urgency wording combined with suspicious scam language"
+  );
+}
 
   } catch (error) {
 
@@ -277,6 +287,58 @@ function ruleBasedDetection(url, pageText = "", pageSignals = {}) {
   };
 }
 
+function cleanAiReasons(reasons = []) {
+
+  const blockedPatterns = [
+    /ruleBasedResult/i,
+    /pageSignals/i,
+    /safeBrowsing/i,
+    /hasPasswordField/i,
+    /hasUrgencyWords/i,
+    /\.score/i,
+    /\btrue\b/i,
+    /\bfalse\b/i
+  ];
+
+  return reasons
+    .filter(reason =>
+      typeof reason === "string" &&
+      reason.trim().length > 0
+    )
+    .map(reason =>
+      reason.trim()
+    )
+    .filter(reason =>
+      !blockedPatterns.some(pattern =>
+        pattern.test(reason)
+      )
+    );
+}
+
+function cleanScamPhrases(phrases = []) {
+
+  const genericWords = [
+    "reply",
+    "course",
+    "password",
+    "https"
+  ];
+
+  return phrases
+    .filter(phrase =>
+      typeof phrase === "string" &&
+      phrase.trim().length > 2
+    )
+    .map(phrase =>
+      phrase.trim()
+    )
+    .filter(phrase =>
+      !genericWords.includes(
+        phrase.toLowerCase()
+      )
+    );
+}
+
 // =====================================================
 // OLLAMA AI ANALYSIS
 // =====================================================
@@ -289,6 +351,7 @@ async function analyzeWithOllama(data) {
 You are a professional cybersecurity threat analysis engine.
 
 Analyze the website carefully.
+Your job is to decide whether the page is likely safe, suspicious, or dangerous for a normal user.
 
 Detect:
 - phishing
@@ -303,10 +366,33 @@ Detect:
 - suspicious payment requests
 - impersonation attempts
 
+Use the rule-based findings as supporting cybersecurity evidence, but make your own final risk decision from the full website data.
+
+Important strict rules:
+- Do not treat HTTPS as suspicious. HTTPS is normal and usually positive.
+- Do not mark a page suspicious only because it has words like login, reply, course, account, password, or verify. These words can be normal on schools, banks, shops, and dashboards.
+- Do not mark school, work, dashboard, learning platform, or internal portal pages as scams unless there is clear phishing, credential theft, impersonation, payment fraud, malware, or fake giveaway behavior.
+- Do not use JSON field names in your reasons. Never write reasons like "ruleBasedResult.score < 50", "pageSignals.hasUrgencyWords", "hasPasswordField", or "safeBrowsing.unsafe".
+- Reasons must be human-readable sentences that explain what a real user can understand.
+- If the evidence is weak, choose a low score and explain that no clear scam indicators were found.
+- Only assign 50 or higher when there are at least TWO strong dangerous indicators, such as credential theft, fake payment request, fake prize, impersonation, malware, crypto scam, or Google Safe Browsing warning.
+- A login form alone must stay Safe or low Suspicious.
+- Only include scamPhrases that are actual suspicious phrases found in the website text. Do not include generic single words unless they are clearly used in a scam context.
+- If this looks like a legitimate educational, business, or service website, keep the score in the Safe range unless the content strongly suggests abuse.
+
+Risk score guide:
+- 0-20 = Safe. No clear scam evidence, or only normal website behavior.
+- 21-49 = Suspicious. Some concerning signs exist, but not enough to call it dangerous.
+- 50-100 = Dangerous. Clear phishing, scam, credential theft, malware, impersonation, or fraud behavior.
+
+Write the summary for a non-technical user in 2-4 clear sentences.
+Explain what was found, why it matters, and whether the user should be careful.
+
 Return ONLY valid JSON.
 
 {
-  "score": 0-40,
+  "score": 0-100,
+  "status": "Safe | Suspicious | Dangerous",
   "reasons": [],
   "scamPhrases": [],
   "summary": ""
@@ -341,6 +427,10 @@ ${JSON.stringify(data, null, 2)}
                 type: "number"
               },
 
+              status: {
+                type: "string"
+              },
+
               reasons: {
                 type: "array",
 
@@ -364,6 +454,7 @@ ${JSON.stringify(data, null, 2)}
 
             required: [
               "score",
+              "status",
               "reasons",
               "summary"
             ]
@@ -419,6 +510,9 @@ ${JSON.stringify(data, null, 2)}
     return {
       score: parsed.score || 0,
 
+      status:
+        parsed.status || "",
+
       reasons:
         parsed.reasons || [],
 
@@ -438,7 +532,8 @@ ${JSON.stringify(data, null, 2)}
     );
 
     return {
-      score: 0,
+      score: null,
+      status: "",
       reasons: [],
       scamPhrases: [],
       summary:
@@ -468,7 +563,7 @@ app.post("/analyze", async (req, res) => {
     const safeBrowsing =
       await checkSafeBrowsing(url);
 
-    let finalScore = 0;
+    let ruleScore = 0;
 
     let reasons = [];
 
@@ -479,7 +574,7 @@ app.post("/analyze", async (req, res) => {
 
     if (safeBrowsing.unsafe) {
 
-      finalScore += 60;
+      ruleScore += 60;
 
       reasons.push(
         "Google Safe Browsing marked this website as dangerous"
@@ -497,7 +592,7 @@ app.post("/analyze", async (req, res) => {
         pageSignals
       );
 
-    finalScore += ruleResult.score;
+    ruleScore += ruleResult.score;
 
     reasons = [
       ...new Set([
@@ -513,13 +608,16 @@ app.post("/analyze", async (req, res) => {
       ])
     ];
 
+    ruleScore =
+      Math.min(100, ruleScore);
+
+    let finalScore = ruleScore;
+
     // =========================================
     // OLLAMA ANALYSIS
     // =========================================
 
-    if (finalScore >= 20) {
-
-      console.log(
+    console.log(
         "⚠️ Triggering Ollama analysis..."
       );
 
@@ -530,32 +628,71 @@ app.post("/analyze", async (req, res) => {
           pageText:
             pageText
               .replace(/\s+/g, " ")
-              .slice(0, 4000)
+              .slice(0, 4000),
+
+          pageSignals,
+
+          ruleBasedResult: {
+            score: ruleScore,
+            reasons,
+            scamPhrases
+          },
+
+          safeBrowsing
         });
 
-      finalScore +=
-        Math.min(
-          aiResult.score || 0,
-          40
-        );
+if (typeof aiResult.score === "number") {
+  finalScore = Math.round(
+    (ruleScore * 0.4) + (aiResult.score * 0.6)
+  );
+
+  finalScore = Math.max(
+    0,
+    Math.min(100, finalScore)
+  );
+}
+const strongReasons = reasons.filter(reason => {
+  const r = reason.toLowerCase();
+
+  return (
+    r.includes("safe browsing") ||
+    r.includes("credential") ||
+    r.includes("password") ||
+    r.includes("bank") ||
+    r.includes("payment") ||
+    r.includes("crypto") ||
+    r.includes("prize") ||
+    r.includes("scam") ||
+    r.includes("phishing") ||
+    r.includes("malware") ||
+    r.includes("impersonation")
+  );
+});
+
+if (
+  !safeBrowsing.unsafe &&
+  finalScore >= 50 &&
+  strongReasons.length < 2
+) {
+  finalScore = 35;
+}
 
       reasons = [
         ...new Set([
           ...reasons,
-          ...(aiResult.reasons || [])
+          ...cleanAiReasons(aiResult.reasons || [])
         ])
       ];
 
       scamPhrases = [
         ...new Set([
           ...scamPhrases,
-          ...(aiResult.scamPhrases || [])
+          ...cleanScamPhrases(aiResult.scamPhrases || [])
         ])
       ];
 
       explanation =
         aiResult.summary || explanation;
-    }
 
     // =========================================
     // FINAL SCORE
@@ -569,16 +706,30 @@ app.post("/analyze", async (req, res) => {
     if (finalScore >= 50) {
       status = "Dangerous";
     }
-    else if (finalScore >= 20) {
+    else if (finalScore > 20) {
       status = "Suspicious";
+    }
+
+    if (safeBrowsing.unsafe && finalScore < 50) {
+      finalScore = 50;
+      status = "Dangerous";
+    }
+
+    if (finalScore >= 50) {
+      status = "Dangerous";
+    }
+    else if (finalScore > 20) {
+      status = "Suspicious";
+    }
+    else {
+      status = "Safe";
     }
 
     // =========================================
     // SAFE CLEANUP
     // =========================================
 
-    if (finalScore < 10) {
-
+if (finalScore <= 20 && !safeBrowsing.unsafe) {
       reasons = [];
 
       scamPhrases = [];

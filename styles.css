@@ -1,6 +1,6 @@
 /* styles.css */
 @import "tailwindcss";
-
+@tailwind utilities;
 
 :root {
   color-scheme: light;
@@ -93,4 +93,79 @@ body.dark-mode #historyList p {
 
 .hidden {
   display: none !important;
+}
+#activityTab {
+  padding: 26px 20px !important;
+}
+
+#activityTab h3 {
+  font-size: 20px;
+  font-weight: 800;
+  margin-bottom: 26px;
+}
+
+.activity-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+  box-shadow: 0 3px 9px rgba(15, 23, 42, 0.12);
+}
+
+.activity-top {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.activity-domain {
+  font-size: 15px;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.activity-date {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.activity-status {
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.activity-score {
+  font-size: 14px;
+  font-weight: 800;
+  color: #111827;
+  margin-top: 18px;
+}
+
+.activity-details {
+  font-size: 12px;
+  color: #4b5563;
+  margin-top: 6px;
+  line-height: 1.35;
+
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.activity-status.safe {
+  color: #16a34a;
+}
+
+.activity-status.suspicious {
+  color: #f97316;
+}
+
+.activity-status.dangerous {
+  color: #dc2626;
 }

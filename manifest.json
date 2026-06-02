@@ -6,6 +6,7 @@
   "permissions": ["storage", "activeTab", "scripting","tabs"],
   "host_permissions": [
     "<all_urls>",
+    "http://localhost:3000/*",
     "https://safebrowsing.googleapis.com/*",
     "https://generativelanguage.googleapis.com/*"
   ],

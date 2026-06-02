@@ -12,9 +12,19 @@ const reasonsList = document.getElementById("reasonsList");
 const aiText = document.getElementById("text");
 
 const analyzeAgainBtn = document.getElementById("analyzeAgainBtn");
+const reportBtn = document.getElementById("reportBtn");
+const reportCount = document.getElementById("reportCount");
+const overviewBtn = document.getElementById("overviewBtn");
+const activityBtn = document.getElementById("activityBtn");
+const overviewTab = document.getElementById("overviewTab");
+const activityTab = document.getElementById("activityTab");
+const historyList = document.getElementById("historyList");
 
 const themeToggle = document.getElementById("themeToggle");
 const toggleCircle = document.getElementById("toggleCircle");
+
+const SCAN_HISTORY_KEY = "redflag_scan_history";
+const REPORTS_KEY = "redflag_reports";
 
 // =====================================================
 // THEME TOGGLE
@@ -48,6 +58,23 @@ if (analyzeAgainBtn) {
   );
 }
 
+if (reportBtn) {
+  reportBtn.addEventListener(
+    "click",
+    reportCurrentWebsite
+  );
+}
+
+if (overviewBtn && activityBtn) {
+  overviewBtn.addEventListener("click", () => {
+    showTab("overview");
+  });
+
+  activityBtn.addEventListener("click", () => {
+    showTab("activity");
+  });
+}
+
 // =====================================================
 // INITIAL LOAD
 // =====================================================
@@ -58,6 +85,8 @@ document.addEventListener("DOMContentLoaded", () => {
     analyzeCurrentTab();
     setupExpandLogic();
     loadButtonCount();
+    loadReportCount();
+    loadHistory();
   }, 800);
 
 });
@@ -132,6 +161,7 @@ async function analyzeCurrentTab() {
 
       domainLength:
         parsedUrl.hostname.length,
+        internalLinks: pageData.internalLinks || [],
 
       urlLength:
         tab.url.length,
@@ -169,12 +199,17 @@ async function analyzeCurrentTab() {
 
     await saveScanToHistory({
       site_url: tab.url,
-      hostname,
-      risk_score: result.riskScore || 0,
+      hostname: parsedUrl.hostname,
+      risk_score: result.riskScore || result.score || 0,
       status: result.status || "Unknown",
-      details: result.summary || "No analysis available.",
+      details:
+        result.summary ||
+        result.explanation ||
+        "No analysis available.",
       scan_date: new Date().toLocaleString(),
     });
+
+    await loadHistory();
 
     // highlight scam phrases
 
@@ -353,7 +388,13 @@ async function getPageData(tabId) {
             })
 
             .join(" ");
-
+const internalLinks =
+  Array.from(document.links)
+    .map(a => a.href)
+    .filter(href =>
+      href.startsWith(location.origin)
+    )
+    .slice(0, 20);
         return {
 
           combinedText:
@@ -363,10 +404,12 @@ async function getPageData(tabId) {
 
           hasPasswordField,
 
-          hasUrgencyWords
+          hasUrgencyWords,
+          internalLinks
         };
       }
     });
+    
 
   return injected[0]?.result || {
     combinedText: ""
@@ -445,6 +488,166 @@ async function highlightPage(
 }
 
 // =====================================================
+// HISTORY / REPORTS
+// =====================================================
+
+function storageGet(defaults) {
+  return new Promise(resolve => {
+    chrome.storage.local.get(defaults, resolve);
+  });
+}
+
+function storageSet(data) {
+  return new Promise(resolve => {
+    chrome.storage.local.set(data, resolve);
+  });
+}
+
+async function saveScanToHistory(scan) {
+  const data =
+    await storageGet({
+      [SCAN_HISTORY_KEY]: []
+    });
+
+  const history =
+    data[SCAN_HISTORY_KEY] || [];
+
+  history.unshift(scan);
+
+  await storageSet({
+    [SCAN_HISTORY_KEY]: history.slice(0, 25)
+  });
+}
+
+async function loadHistory() {
+  if (!historyList) return;
+
+  const data =
+    await storageGet({
+      [SCAN_HISTORY_KEY]: []
+    });
+
+  const history =
+    data[SCAN_HISTORY_KEY] || [];
+
+  if (!history.length) {
+    historyList.innerHTML = `
+      <p class="text-gray-500 text-sm">
+        No analysis history yet.
+      </p>
+    `;
+    return;
+  }
+
+  historyList.innerHTML = "";
+
+  history.forEach(item => {
+    const row =
+      document.createElement("div");
+
+    row.className =
+  "activity-card";
+row.innerHTML = `
+  <div class="activity-top">
+    <div>
+      <strong class="activity-domain">${item.hostname}</strong>
+      <p class="activity-date">${item.scan_date}</p>
+    </div>
+    <span class="activity-status ${item.status.toLowerCase()}">
+      ${item.status}
+    </span>
+  </div>
+
+  <p class="activity-score">Risk Score: ${item.risk_score}%</p>
+  <p class="activity-details">${item.details || "No analysis available."}</p>
+`;
+
+    historyList.appendChild(row);
+  });
+}
+
+async function loadReportCount() {
+  if (!reportCount) return;
+
+  const hostname =
+    await getActiveHostname();
+
+  if (!hostname) {
+    reportCount.textContent =
+      "Reported users: 0";
+    return;
+  }
+
+  const data =
+    await storageGet({
+      [REPORTS_KEY]: {}
+    });
+
+  const reports =
+    data[REPORTS_KEY] || {};
+
+  reportCount.textContent =
+    `Reported users: ${reports[hostname] || 0}`;
+}
+
+async function reportCurrentWebsite() {
+  const hostname =
+    await getActiveHostname();
+
+  if (!hostname) return;
+
+  const data =
+    await storageGet({
+      [REPORTS_KEY]: {}
+    });
+
+  const reports =
+    data[REPORTS_KEY] || {};
+
+  reports[hostname] =
+    (reports[hostname] || 0) + 1;
+
+  await storageSet({
+    [REPORTS_KEY]: reports
+  });
+
+  await loadReportCount();
+}
+
+async function getActiveHostname() {
+  const [tab] =
+    await chrome.tabs.query({
+      active: true,
+      currentWindow: true
+    });
+
+  if (!tab?.url) return "";
+
+  try {
+    return new URL(tab.url).hostname;
+  } catch (error) {
+    return "";
+  }
+}
+
+function showTab(tabName) {
+  if (!overviewTab || !activityTab) return;
+
+  const showActivity =
+    tabName === "activity";
+
+  overviewTab.classList.toggle(
+    "hidden",
+    showActivity
+  );
+
+  activityTab.classList.toggle(
+    "hidden",
+    !showActivity
+  );
+}
+
+// =====================================================
 // RENDER RESULTS
 // =====================================================
 
@@ -467,7 +670,7 @@ function renderResult(result) {
     websiteStatus.className =
       "text-red-600 font-semibold mt-1 text-[30px]";
 
-  } else if (score >= 20) {
+  } else if (score > 20) {
 
     websiteStatus.className =
       "text-orange-500 font-semibold mt-1 text-[30px]";
@@ -549,7 +752,7 @@ function updateRisk(score) {
     riskBar.style.backgroundColor =
       "#dc2626";
 
-  } else if (score >= 20) {
+  } else if (score > 20) {
 
     riskBar.style.backgroundColor =
       "#f97316";
