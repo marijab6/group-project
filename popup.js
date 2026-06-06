@@ -213,10 +213,17 @@ async function analyzeCurrentTab() {
 
     // highlight scam phrases
 
-    await highlightPage(
-      tab.id,
-      result.scamPhrases || []
-    );
+if ((result.score || 0) > 20) {
+const phrasesToHighlight = [
+  ...(result.scamPhrases || []),
+  ...(result.reasons || [])
+];
+
+await highlightPage(
+  tab.id,
+  phrasesToHighlight,
+  result.score || 0
+);}
 
   } catch (error) {
 
@@ -420,67 +427,37 @@ const internalLinks =
 // HIGHLIGHT SCAM PHRASES
 // =====================================================
 
-async function highlightPage(
-  tabId,
-  scamPhrases
-) {
+async function highlightPage(tabId, scamPhrases, score) {
+  if (!scamPhrases || !scamPhrases.length) return;
+  if (score <= 20) return;
 
-  if (!scamPhrases?.length) return;
+  const color = score >= 50 ? "#dc2626" : "#f97316";
 
   await chrome.scripting.executeScript({
-
     target: { tabId },
+    args: [scamPhrases, color],
+    func: (phrases, color) => {
+      const cleanPhrases = phrases
+        .filter(p => p && p.length > 2)
+        .map(p => p.toLowerCase());
 
-    args: [scamPhrases],
-
-    func: (phrases) => {
-
-      const cleanPhrases =
-        phrases
-
-          .filter(p =>
-            p &&
-            p.length > 2
-          )
-
-          .map(p =>
-            p.toLowerCase()
-          );
-
-      const elements =
-        document.querySelectorAll(
-          "p,span,h1,h2,h3,h4,a,button,label,div"
-        );
+      const elements = document.querySelectorAll(
+        "p,span,h1,h2,h3,h4,a,button,label,div"
+      );
 
       elements.forEach(element => {
+        const text = element.innerText || "";
+        const lower = text.toLowerCase();
 
-        const text =
-          element.innerText || "";
-
-        const lower =
-          text.toLowerCase();
-
-        const found =
-          cleanPhrases.some(phrase =>
-            lower.includes(phrase)
-          );
+        const found = cleanPhrases.some(phrase =>
+          lower.includes(phrase)
+        );
 
         if (found) {
-
-          element.style.backgroundColor =
-            "#dc2626";
-
-          element.style.color =
-            "white";
-
-          element.style.padding =
-            "2px 4px";
-
-          element.style.borderRadius =
-            "4px";
-
-          element.style.outline =
-            "2px solid #991b1b";
+          element.style.backgroundColor = color;
+          element.style.color = "white";
+          element.style.padding = "2px 4px";
+          element.style.borderRadius = "4px";
         }
       });
     }

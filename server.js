@@ -447,7 +447,7 @@ const response = await fetch(
 format: "json",
 
       options: {
-        temperature: 0.1,
+        temperature: 0,
         num_predict: 600
       }
     })
@@ -633,14 +633,7 @@ app.post("/analyze", async (req, res) => {
         });
 
 if (typeof aiResult.score === "number") {
-  finalScore = Math.round(
-    (ruleScore * 0.4) + (aiResult.score * 0.6)
-  );
-
-  finalScore = Math.max(
-    0,
-    Math.min(100, finalScore)
-  );
+  finalScore = Math.max(ruleScore, aiResult.score);
 }
 const strongReasons = reasons.filter(reason => {
   const r = reason.toLowerCase();
@@ -660,13 +653,16 @@ const strongReasons = reasons.filter(reason => {
   );
 });
 
-if (
-  !safeBrowsing.unsafe &&
-  finalScore >= 50 &&
-  strongReasons.length < 2
-) {
-  finalScore = 35;
-}
+// if (
+//   !safeBrowsing.unsafe &&
+//   finalScore >= 50 &&
+//   strongReasons.length < 2
+// ) {
+//   finalScore = 35;
+// }
+console.log("Rule Score:", ruleScore);
+console.log("AI Score:", aiResult.score);
+console.log("Final Score:", finalScore);
 
       reasons = [
         ...new Set([
