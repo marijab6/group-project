@@ -400,7 +400,7 @@ const internalLinks =
           combinedText:
             `${visibleText} ${imageText} ${linkText}`
               .replace(/\s+/g, " ")
-              .slice(0, 12000),
+              .slice(0, 2500),
 
           hasPasswordField,
 
