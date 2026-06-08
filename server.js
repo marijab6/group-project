@@ -26,8 +26,7 @@ const GOOGLE_SAFE_BROWSING_KEY =
 const OLLAMA_URL =
   "http://localhost:11434/api/generate";
 
-const OLLAMA_MODEL = "llama3.2:1b";
-
+const OLLAMA_MODEL = "llama3.2:3b";
 // =====================================================
 // SAFE BROWSING
 // =====================================================
@@ -271,8 +270,23 @@ const suspiciousWords = [
     // PASSWORD FIELD
     // =========================================
 
+// PASSWORD FIELD
 if (pageSignals.hasPasswordField) {
-  score += 0;
+  score += 20;
+  reasons.push("Website asks for a password");
+  scamPhrases.push("password");
+}
+
+// URGENCY WORDING
+if (pageSignals.hasUrgencyWords) {
+  score += 15;
+  reasons.push("Website uses urgent wording to pressure the user");
+}
+
+// PASSWORD + URGENCY COMBINATION
+if (pageSignals.hasPasswordField && pageSignals.hasUrgencyWords) {
+  score += 20;
+  reasons.push("Website combines password collection with urgent account warnings");
 }
 
     // =========================================
